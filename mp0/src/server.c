@@ -181,6 +181,10 @@ int main(int argc, char *argv[])
 
 		if (!fork()) { // this is the child process
 			close(sockfd); // child doesn't need the listener
+			/************************* mp0 code insert here ********************/
+			
+			/************************* mp0 code end here ********************/
+
 			if (send(new_fd,result, strlen(result), 0) == -1)
 				perror("send");
 			close(new_fd);

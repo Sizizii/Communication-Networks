@@ -26,7 +26,7 @@
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
-	if (sa->sa_family == AF_INET) {
+	if (sa->sa_family == AF_INET) { // AF_INET: internetwork: UDP, TCP
 		return &(((struct sockaddr_in*)sa)->sin_addr);
 	}
 
@@ -61,8 +61,8 @@ int main(int argc, char *argv[])
 	}
 
 	memset(&hints, 0, sizeof hints);
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_family = AF_UNSPEC; //unspecified addr families
+	hints.ai_socktype = SOCK_STREAM; //stream socket
 
 	if ((rv = getaddrinfo(argv[1], PORT, &hints, &servinfo)) != 0) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
 	freeaddrinfo(servinfo); // all done with this structure
 
 	if ((numbytes = recv(sockfd, buf, MAXDATASIZE-1, 0)) == -1) {
+		// recv return the length of the message received
 	    perror("recv");
 	    exit(1);
 	}
@@ -105,12 +106,23 @@ int main(int argc, char *argv[])
 	buf[numbytes] = '\0';
 
 	char * pos;
-	pos=strchr(buf,'\n');
-	//printf("found at %zu\n",pos-buf+1);	
+	pos=strchr(buf,'\n'); 
+	//returns a pointer to the first occurrence of '\n' in the string.
+
+	printf("found at %zu\n",pos-buf+1);	
+
 	unsigned int str_position = pos-buf;
 	//printf("%zu \n\n",str_position);
 	printf("client: received %.*s bytes",str_position,buf);
 	printf("%s",buf+str_position+2);
+
+	/************************* MP0 starts here ******************/
+
+	/* read the length, the number of bytes from TCP socket, and print what was received */
+	printf("client: received %d bytes", numbytes);
+	printf("client: received message: '%s'", buf);
+
+	/************************* MP0  ends here ********************/
 
 
 	close(sockfd);
