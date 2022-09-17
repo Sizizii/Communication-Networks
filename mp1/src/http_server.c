@@ -19,7 +19,7 @@
 #define BACKLOG 10 // how many pending connections queue will hold
 #define MaxSize 4096
 #define HeaderMaxSize 1024
-#define ReadMaxSize 4096
+#define ReadMaxSize 2048
 void sigchld_handler(int s)
 {
   while (waitpid(-1, NULL, WNOHANG) > 0)
@@ -131,20 +131,23 @@ int main(int argc, char *argv[])
     {                // this is the child process
       close(sockfd); // child doesn't need the listener
       char buffer[MaxSize];
-      char *type = "";
-      // receive data from new_fd
+      // char *type;
+      //  receive data from new_fd
       if (recv(new_fd, buffer, MaxSize, 0) == -1)
       {
         // report error
+        printf("recv: error\n");
         perror("recv error");
       }
       else
       {
+        printf("recv: success\n");
+        printf("%s", buffer);
         // no error from recv
-        strncpy(type, buffer, 3);
         // instruction is not GET
-        if (strcmp(type, "GET") != 0)
+        if (strncmp(buffer, "GET", 3) != 0)
         {
+          printf("Error: fail to find GET. \n");
           char header[] = "400 Bad Request\r\n\r\n";
           if (send(sockfd, header, strlen(header), 0) == -1)
           {
@@ -157,6 +160,7 @@ int main(int argc, char *argv[])
           // parse the request and get the file path
           char filePath[1024];
           sscanf(buffer, "%*s /%s %*s", filePath);
+          printf("filepath: %s\n", filePath);
           // send the file
           char header[HeaderMaxSize];
           FILE *fpt = fopen(filePath, "r");
@@ -175,10 +179,12 @@ int main(int argc, char *argv[])
             strcpy(header, "HTTP/1.1 200 OK\r\n\r\n");
             if (send(new_fd, header, strlen(header), 0) == -1)
             {
+              printf("Bad send.\n");
               perror("400 Bad Send");
             }
             else
             {
+              printf("Sending file.\n");
               // send header success
               char readInfo[ReadMaxSize];
               int bytes = 0;

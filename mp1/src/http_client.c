@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
     {
       /* port starts with : */
       has_port = 1;
+      arg_temp_idx++;
       break;
     }
     else if (argv[1][arg_temp_idx] == '/')
@@ -122,7 +123,7 @@ int main(int argc, char *argv[])
   int path_len = strlen(argv[1]) - arg_temp_idx;
   strncpy(path2file, argv[1] + arg_temp_idx, path_len);
 
-  printf("Host: %s, PORT: %s, PATH: %s", hostname, client_port, path2file);
+  printf("Host: %s, PORT: %s, PATH: %s\n", hostname, client_port, path2file);
   // printf("\n");
 
   /************** Finish processing input args **********************/
@@ -186,6 +187,7 @@ int main(int argc, char *argv[])
 
   if (send(sockfd, buf, strlen(buf), 0) == -1)
   {
+    printf("Error sending.\n");
     perror("send");
     exit(1);
   }
@@ -193,12 +195,14 @@ int main(int argc, char *argv[])
   FILE *fptw;
   fptw = fopen("output", "w");
   int check_recv = 0;
+  printf("Start receiving file.\n");
   while (1)
   {
     if ((numbytes = recv(sockfd, recvbuf, MAXDATASIZE - 1, 0)) > 0)
     {
       if (check_recv == 1)
       {
+        printf("Continue writing to output.\n");
         fwrite(recvbuf, 1, numbytes, fptw);
       }
       else
@@ -206,11 +210,13 @@ int main(int argc, char *argv[])
         if (strncmp(recvbuf + strlen("HTTP/1.1 "), "200 OK", 6) == 0)
         {
           check_recv = 1;
+          printf("Read the file successfully.\n");
           char *file_start_from_ = strstr(recvbuf, "\r\n\r\n");
-          fwrite(file_start_from_, 1, numbytes - (file_start_from_ - recvbuf), fptw);
+          fwrite(file_start_from_ + strlen("\r\n\r\n"), 1, numbytes - (file_start_from_ - recvbuf), fptw);
         }
         else
         {
+          printf("Read failed.");
           fprintf(stderr, "Fail to read such file from path.");
           break;
         }
@@ -218,9 +224,14 @@ int main(int argc, char *argv[])
     }
     else
     {
-      fclose(fptw);
-      perror("recv");
-      exit(1);
+      if (check_recv != 1)
+      {
+        fclose(fptw);
+        printf("Error: recv\n");
+        perror("recv");
+        exit(1);
+      }
+      break;
     }
   }
 
