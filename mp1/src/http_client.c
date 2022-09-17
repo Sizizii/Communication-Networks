@@ -192,11 +192,29 @@ int main(int argc, char *argv[])
 
   FILE *fptw;
   fptw = fopen("output", "w");
+  int check_recv = 0;
   while (1)
   {
     if ((numbytes = recv(sockfd, recvbuf, MAXDATASIZE - 1, 0)) > 0)
     {
-      fprintf(fptw, "%s", recvbuf);
+      if (check_recv == 1)
+      {
+        fwrite(recvbuf, 1, numbytes, fptw);
+      }
+      else
+      {
+        if (strncmp(recvbuf + strlen("HTTP/1.1 "), "200 OK", 6) == 0)
+        {
+          check_recv = 1;
+          char *file_start_from_ = strstr(recvbuf, "\r\n\r\n");
+          fwrite(file_start_from_, 1, numbytes - (file_start_from_ - recvbuf), fptw);
+        }
+        else
+        {
+          fprintf(stderr, "Fail to read such file from path.");
+          break;
+        }
+      }
     }
     else
     {
