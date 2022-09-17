@@ -212,12 +212,15 @@ int main(int argc, char *argv[])
           check_recv = 1;
           printf("Read the file successfully.\n");
           char *file_start_from_ = strstr(recvbuf, "\r\n\r\n");
+          printf("%s\n", recvbuf);
+          printf("%s\n", file_start_from_ + strlen("\r\n\r\n"));
           fwrite(file_start_from_ + strlen("\r\n\r\n"), 1, numbytes - (file_start_from_ - recvbuf), fptw);
         }
         else
         {
           printf("Read failed.");
-          fprintf(stderr, "Fail to read such file from path.");
+          // fprintf(stderr, "Fail to read such file from path.");
+          perror("read file");
           break;
         }
       }
