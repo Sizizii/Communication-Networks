@@ -19,7 +19,7 @@
 #define BACKLOG 10 // how many pending connections queue will hold
 #define MaxSize 4096
 #define HeaderMaxSize 1024
-#define ReadMaxSize 2048
+#define ReadMaxSize 1024
 void sigchld_handler(int s)
 {
   while (waitpid(-1, NULL, WNOHANG) > 0)
@@ -193,6 +193,7 @@ int main(int argc, char *argv[])
                 if (send(new_fd, readInfo, bytes, 0) == -1)
                 {
                   perror("400 Bad Send");
+                  break;
                 }
               }
             }
