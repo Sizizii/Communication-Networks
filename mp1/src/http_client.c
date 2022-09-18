@@ -181,8 +181,7 @@ int main(int argc, char *argv[])
   strcat(buf, ":");
   strcat(buf, client_port);
   strcat(buf, "\r\n");
-  strcat(buf, "Connection: Keep-Alive\r\n");
-  strcat(buf, "\r\n");
+  strcat(buf, "Connection: Keep-Alive\r\n\r\n");
   printf("%s", buf);
 
   if (send(sockfd, buf, strlen(buf), 0) == -1)
@@ -194,6 +193,12 @@ int main(int argc, char *argv[])
 
   FILE *fptw;
   fptw = fopen("output", "w");
+  if (!fptw)
+  {
+    perror("open");
+    close(sockfd);
+    exit(1);
+  }
   int check_recv = 0;
   printf("Start receiving file.\n");
   while (1)
@@ -203,6 +208,7 @@ int main(int argc, char *argv[])
       if (check_recv == 1)
       {
         printf("Continue writing to output.\n");
+        recvbuf[numbytes] = '\0';
         fwrite(recvbuf, 1, numbytes, fptw);
       }
       else
@@ -212,9 +218,9 @@ int main(int argc, char *argv[])
           check_recv = 1;
           printf("Read the file successfully.\n");
           char *file_start_from_ = strstr(recvbuf, "\r\n\r\n");
-          printf("%s\n", recvbuf);
-          printf("%s\n", file_start_from_ + strlen("\r\n\r\n"));
-          fwrite(file_start_from_ + strlen("\r\n\r\n"), 1, numbytes - (file_start_from_ - recvbuf), fptw);
+          // printf("%s\n", recvbuf);
+          // printf("%s\n", file_start_from_ + strlen("\r\n\r\n"));
+          fwrite(file_start_from_ + strlen("\r\n\r\n"), 1, numbytes - (file_start_from_ - recvbuf) - strlen("\r\n\r\n"), fptw);
         }
         else
         {
@@ -227,13 +233,6 @@ int main(int argc, char *argv[])
     }
     else
     {
-      if (check_recv != 1)
-      {
-        fclose(fptw);
-        printf("Error: recv\n");
-        perror("recv");
-        exit(1);
-      }
       break;
     }
   }

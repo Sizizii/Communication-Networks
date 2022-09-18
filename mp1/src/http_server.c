@@ -142,9 +142,9 @@ int main(int argc, char *argv[])
       else
       {
         printf("recv: success\n");
-        printf("%s", buffer);
-        // no error from recv
-        // instruction is not GET
+        // printf("%s", buffer);
+        //  no error from recv
+        //  instruction is not GET
         if (strncmp(buffer, "GET", 3) != 0)
         {
           printf("Error: fail to find GET. \n");
