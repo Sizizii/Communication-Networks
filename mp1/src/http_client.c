@@ -97,6 +97,7 @@ int main(int argc, char *argv[])
       hostname_idx++;
     }
   }
+  hostname[hostname_idx] = '\0';
 
   // for the port
   if (has_port == 1)
@@ -113,15 +114,19 @@ int main(int argc, char *argv[])
         client_port[port_idx++] = argv[1][arg_temp_idx];
       }
     }
+    client_port[port_idx] = '\0';
   }
   else
   {
     strcpy(client_port, HTTP_PORT);
+    // client_port[strlen(HTTP_PORT) + 1] = '\0';
   }
 
   // for the path to file
-  int path_len = strlen(argv[1]) - arg_temp_idx;
-  strncpy(path2file, argv[1] + arg_temp_idx, path_len);
+  int path_len = arg_len - arg_temp_idx;
+  printf("argv1 len: %d", arg_len);
+  printf("path_len: %d", path_len);
+  strncpy(path2file, argv[1] + arg_temp_idx, path_len + 1);
 
   printf("Host: %s, PORT: %s, PATH: %s\n", hostname, client_port, path2file);
   // printf("\n");
@@ -208,7 +213,6 @@ int main(int argc, char *argv[])
       if (check_recv == 1)
       {
         printf("Continue writing to output.\n");
-        recvbuf[numbytes] = '\0';
         fwrite(recvbuf, 1, numbytes, fptw);
       }
       else
