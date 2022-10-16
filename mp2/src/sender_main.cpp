@@ -26,9 +26,9 @@
 #include <netdb.h>
 using namespace std;
 
-#include "sender.h"
+// #include "sender.h"
 
-#define MSS 4088 //1460
+#define MSS 1460
 // class State;
 char fpReadBuf[MSS];
 //enum action {waitACK, resendPkt, sendNewPkt}
@@ -49,7 +49,7 @@ pair<int, int> lastAckPair(-1, 0);  // first element stores the last acknowledge
 // char recvBuffer[4096];
 
 FILE* file_ptr;
-State* cur_state;
+// State* cur_state;
 
 
 void diep(char *s) {
@@ -83,12 +83,12 @@ public:
     }
 };
 
-State::State(){};
-State::State(Sender* sender){
-    this->tcp_sender = sender;
-    // this->state_type = state_type;
-}
-State::~State(){};
+// State::State(){};
+// State::State(Sender* sender){
+//     this->tcp_sender = sender;
+//     // this->state_type = state_type;
+// }
+// State::~State(){};
 
 class Sender{
 public:
@@ -100,21 +100,23 @@ public:
     // delete this, move to global int to_do; /* 0 for sending new packets, 1 for (duplicate) resend old packets & check new, and 2 for timeout resend, 3 for nothing*/
     int is_end;
     int file_end;
-    int bytes_remain;
+    unsigned long long int bytes_remain;
     struct timeval checkTimeOut;
+    int state_type;
 
-    Sender(int sockfd, int bytesToTransfer){
+    Sender(int sockfd, unsigned long long int bytesToTransfer){
         // constructor
         this->CW = 1;
-        this->SST = 64;
+        this->SST = 512;
         this->dup_ack = 0;
         this->recv_ack = -1;
         this->is_end = 0;
         this->file_end = 0;
         this->bytes_remain = bytesToTransfer;
         this->sockfd = sockfd;
+        this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 25000;
+        checkTimeOut.tv_usec = 30000;
     }
     
     void WaitAck(){
@@ -134,7 +136,7 @@ public:
         /* time out or invalid recv*/
         int check_to;
         if ((numBytes < 0) || ((check_to = check_first_to()) == 1)) {           
-            cur_state->timeOut();
+            timeOut();
             lastAckPair.second = 0; //? should we clear dup here
             to_do = RESEND_TO;
             // return;
@@ -144,7 +146,7 @@ public:
             lastAckPair.second = 1;
 
             /* update parameter and state transition */
-            cur_state->newACK();
+            newACK();
 
             /* next to_do is to send packets based on CW*/
             to_do = SEND_PCK;
@@ -162,7 +164,7 @@ public:
         }else if(recvack_buf == lastAckPair.first){
             /* duplicate ack receive */
             lastAckPair.second++;
-            if(cur_state->state_type == 2){
+            if(state_type == 2){
                 // cur_state is fast recovery
                 to_do = SEND_PCK;
             }else{ 
@@ -171,7 +173,7 @@ public:
                     to_do = RESEND_DUP;
                 }
             }
-            cur_state->dupACK();
+            dupACK();
             // return;
         }
         
@@ -183,8 +185,8 @@ public:
     void SendPackets(){
         printf("TO_DO: Send Packets \n");
         /* Load packets */
-        int get_pkts_num = getNewPktsNum();
-        queue<TCP_packet> to_send = read_n_load(get_pkts_num);
+        // int get_pkts_num = getNewPktsNum();
+        queue<TCP_packet> to_send = read_n_load();
         /* Send packets */
         sendpackets_(to_send);
         // return recv_ack_();
@@ -195,9 +197,10 @@ public:
     void Resend_TO(){ /* resend for time out*/
         printf("TO_DO:Resend time out \n");
         /* load and resend base */
-        if(waitAckQueue.size() == 0){
-            printf("error logic, check ack");
-        }
+        // if(waitAckQueue.size() == 0){
+        //     printf("error logic, check ack");
+        // }
+
         send_pkt_(&waitAckQueue.front());
         // return recv_ack_();
         to_do = WAIT_ACK;
@@ -206,14 +209,16 @@ public:
 
     void Resend_DUP(){
         printf("TO_DO:Resend dup \n");
+
         /* load and resend base */
-        if(waitAckQueue.size() == 0){
-            printf("error logic, check ack");
-        }
+        // if(waitAckQueue.size() == 0){
+        //     printf("error logic, check ack");
+        // }
+
         send_pkt_(&waitAckQueue.front());
         /* Load packets */
-        int get_pkts_num = this->getNewPktsNum();
-        queue<TCP_packet> to_send = this->read_n_load(get_pkts_num);
+        // int get_pkts_num = this->getNewPktsNum();
+        queue<TCP_packet> to_send = this->read_n_load();
         /* Send packets */
         sendpackets_(to_send);
         // return recv_ack_();
@@ -221,6 +226,54 @@ public:
         return;
     }
     
+    void dupACK(){
+        /* increment numbers of duplicate ack*/
+        dup_ack++;
+        /* check duplicate ack num*/
+        if(state_type == 3){  CW += 1;  }
+        else if(dup_ack == 3){
+          /* half sst*/
+          SST = round(CW / 2) + 1;
+          /* set new cw size */
+          CW = SST + 3;
+          /* Resend cw_base and new pkt based on cw */
+          //tcp_sender->to_do = 1;
+
+          /* swtich to fast recovery */
+          state_type = 2;
+        }
+    }
+
+    void newACK(){
+      printf("New ACK at state: %d\n", state_type);
+      dup_ack = 0;
+      /* increment window size*/
+      switch (state_type){
+        case 0:
+          CW += 1;
+          state_type = (CW >= SST)? 1: 0;
+          break;
+        case 1:
+          CW += 1/(floor(CW)); 
+          break;
+        case 2:
+          CW = SST;
+          state_type = 1;
+          break;
+      }
+    }
+
+    void timeOut(){
+        /* half sst*/
+        SST = round(CW / 2) + 1;
+        /* set new cw size */
+        CW = 1;
+        /* clear duplicate */
+        dup_ack = 0;
+        state_type = 0;
+        /* resend cw_base */
+        //tcp_sender->to_do = 2;
+    }
 
 private:
     queue<TCP_packet> waitAckQueue;
@@ -238,14 +291,15 @@ private:
         return (diffTime < (checkTimeOut.tv_usec/ 1000.0))? 0:1;
     }
 
-    int getNewPktsNum(){
-      // printf("Calculate number of packets shoule be added\n");
-      // when to_do is 0 (send new packets), get the number of packets to be loaded and sent first
-      int pktNum = floor(CW) - waitAckQueue.size();
-      return pktNum;
-    }
+    // int getNewPktsNum(){
+    //   // printf("Calculate number of packets shoule be added\n");
+    //   // when to_do is 0 (send new packets), get the number of packets to be loaded and sent first
+    //   int pktNum = floor(CW) - waitAckQueue.size();
+    //   return pktNum;
+    // }
 
-    queue<TCP_packet> read_n_load(int pktNum){
+    queue<TCP_packet> read_n_load(){
+        int pktNum = floor(CW) - waitAckQueue.size(); 
         // printf("Loading packets from file");
         queue<TCP_packet> newPktQueue;
 
@@ -378,192 +432,192 @@ private:
 
 // };
 
-class SlowStart: public State{
-public:
-    /* init */
-    //using State::State;
-    SlowStart(Sender* sender){
-        this->tcp_sender = sender;
-        this->state_type = 0;
-    }
+// class SlowStart: public State{
+// public:
+//     /* init */
+//     //using State::State;
+//     SlowStart(Sender* sender){
+//         this->tcp_sender = sender;
+//         this->state_type = 0;
+//     }
 
-    /* opeartion */
-    void dupACK(){
-        /* increment numbers of duplicate ack*/
-        tcp_sender->dup_ack++;
+//     /* opeartion */
+//     void dupACK(){
+//         /* increment numbers of duplicate ack*/
+//         tcp_sender->dup_ack++;
         
-        /* check duplicate ack num*/
-        if(tcp_sender->dup_ack != 3){
-            /* continue waiting for ack*/
-            //tcp_sender->to_do = 3;
-        }
-        else{
-            /* half sst*/
-            tcp_sender->SST = round(tcp_sender->CW / 2) + 1;;
-            /* set new cw size */
-            tcp_sender->CW = tcp_sender->SST + 3;
-            /* Resend cw_base and new pkt based on cw */
-            //tcp_sender->to_do = 1;
+//         /* check duplicate ack num*/
+//         if(tcp_sender->dup_ack != 3){
+//             /* continue waiting for ack*/
+//             //tcp_sender->to_do = 3;
+//         }
+//         else{
+//             /* half sst*/
+//             tcp_sender->SST = round(tcp_sender->CW / 2) + 1;;
+//             /* set new cw size */
+//             tcp_sender->CW = tcp_sender->SST + 3;
+//             /* Resend cw_base and new pkt based on cw */
+//             //tcp_sender->to_do = 1;
 
-            /* swtich to fast recovery */
-            if(!cur_state){
-                delete cur_state;
-            }
-            FastRecovery* state_FR = new FastRecovery(tcp_sender);
-            cur_state = state_FR;
-        }
-    }
-
-    void newACK(){
-        printf("New ACK at state: %d\n", cur_state->state_type);
-        /* increment window size*/
-        tcp_sender->CW += 1;
-        /* send new packets based on cw*/
-        //tcp_sender->to_do = 0;
-        /* clear duplicate */
-        tcp_sender->dup_ack = 0;
-
-        /* check if need to swtich state*/
-        if(tcp_sender->CW >= tcp_sender->SST){
-            if(!cur_state){
-                delete cur_state;
-            }
-            CongestionAvoid* state_CA = new CongestionAvoid(tcp_sender);
-            cur_state = state_CA;
-        }
-    }
-
-    void timeOut(){
-        /* half sst*/
-        tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
-        /* set new cw size */
-        tcp_sender->CW = 1;
-        /* clear duplicate */
-        tcp_sender->dup_ack = 0;
-        /* resend cw_base */
-        //tcp_sender->to_do = 2;
-    }
-};
-
-// class CongestionAvoid: public State{
-// public:
-//     /* init */
-//     CongestionAvoid(Sender* sender){
-//         this->tcp_sender = sender;
-//         this->state_type = 1;
+//             /* swtich to fast recovery */
+//             if(!cur_state){
+//                 delete cur_state;
+//             }
+//             FastRecovery* state_FR = new FastRecovery(tcp_sender);
+//             cur_state = state_FR;
+//         }
 //     }
 
-CongestionAvoid::CongestionAvoid(Sender* sender){
-    this->tcp_sender = sender;
-    this->state_type = 1;
-}
+//     void newACK(){
+//         printf("New ACK at state: %d\n", cur_state->state_type);
+//         /* increment window size*/
+//         tcp_sender->CW += 1;
+//         /* send new packets based on cw*/
+//         //tcp_sender->to_do = 0;
+//         /* clear duplicate */
+//         tcp_sender->dup_ack = 0;
 
-/* operation */
-void CongestionAvoid::dupACK(){
-    /* increment numbers of duplicate ack*/
-    tcp_sender->dup_ack++;
-    /* check duplicate ack num*/
-    if(tcp_sender->dup_ack != 3){
-        /* continue waiting for ack*/
-        //tcp_sender->to_do = 3;
-    }
-    else{
-        /* half sst*/
-        tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
-        /* set new cw size */
-        tcp_sender->CW = tcp_sender->SST + 3;
-        /* Resend cw_base and new pkt based on cw */
-        //tcp_sender->to_do = 1;
-        /* swtich to fast recovery */
-        if(!cur_state){
-            delete cur_state;
-        }
-        FastRecovery* state_FR = new FastRecovery(tcp_sender);
-        cur_state = state_FR;
-    }
-}
-
-void CongestionAvoid::newACK(){
-    printf("New ACK at state: %d\n", cur_state->state_type);
-    /* increment window size*/
-    tcp_sender->CW += 1/(floor(tcp_sender->CW));
-    /* send new packets based on cw*/
-    //tcp_sender->to_do = 0;
-    /* clear duplicate */
-    tcp_sender->dup_ack = 0;
-}
-
-void CongestionAvoid::timeOut(){
-    /* half sst*/
-    tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
-    /* set new cw size */
-    tcp_sender->CW = 1;
-    /* clear duplicate */
-    tcp_sender->dup_ack = 0;
-    /* resend cw_base */
-    //tcp_sender->to_do = 2;
-    /* swtich back to slow start state */
-    if(!cur_state){
-            delete cur_state;
-        }
-    SlowStart* state_SS = new SlowStart(tcp_sender);
-    cur_state = state_SS;
-}
-
-
-// class FastRecovery: public State{
-// public:
-//     /* init */
-//     FastRecovery(Sender* sender){
-//         this->tcp_sender = sender;
-//         this->state_type = 2;
+//         /* check if need to swtich state*/
+//         if(tcp_sender->CW >= tcp_sender->SST){
+//             if(!cur_state){
+//                 delete cur_state;
+//             }
+//             CongestionAvoid* state_CA = new CongestionAvoid(tcp_sender);
+//             cur_state = state_CA;
+//         }
 //     }
 
-FastRecovery::FastRecovery(Sender* sender){
-    this->tcp_sender = sender;
-    this->state_type = 2;
-}
-    
-void FastRecovery::dupACK(){
-    /* increment numbers of duplicate ack*/
-    tcp_sender->dup_ack++;
-    /* incerment cw size */
-    tcp_sender->CW += 1;
-    //tcp_sender->to_do = 0;
-}
+//     void timeOut(){
+//         /* half sst*/
+//         tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
+//         /* set new cw size */
+//         tcp_sender->CW = 1;
+//         /* clear duplicate */
+//         tcp_sender->dup_ack = 0;
+//         /* resend cw_base */
+//         //tcp_sender->to_do = 2;
+//     }
+// };
 
-void FastRecovery::newACK(){
-    printf("New ACK at state: %d\n", cur_state->state_type);
-    /* clear duplicate ack */
-    tcp_sender->dup_ack = 0;
-    /* set cw to SST */
-    tcp_sender->CW = tcp_sender->SST;
-    //tcp_sender->to_do = 0;
-    
-    /* switch to congetion avoidance state*/
-    if(!cur_state){
-        delete cur_state;
-    }
-    CongestionAvoid* state_CA = new CongestionAvoid(tcp_sender);
-    cur_state = state_CA;
-}
+// // class CongestionAvoid: public State{
+// // public:
+// //     /* init */
+// //     CongestionAvoid(Sender* sender){
+// //         this->tcp_sender = sender;
+// //         this->state_type = 1;
+// //     }
 
-void FastRecovery::timeOut(){
-    /* half sst*/
-    tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
-    /* set new cw size */
-    tcp_sender->CW = 1;
-    /* clear duplicate */
-    tcp_sender->dup_ack = 0;
-    /* resend cw_base */
-    //tcp_sender->to_do = 2;
-    /* swtich back to slow start state */
-    if(!cur_state){
-            delete cur_state;
-        }
-    SlowStart* state_SS = new SlowStart(tcp_sender);
-    cur_state = state_SS;
-}
+// CongestionAvoid::CongestionAvoid(Sender* sender){
+//     this->tcp_sender = sender;
+//     this->state_type = 1;
+// }
+
+// /* operation */
+// void CongestionAvoid::dupACK(){
+//     /* increment numbers of duplicate ack*/
+//     tcp_sender->dup_ack++;
+//     /* check duplicate ack num*/
+//     if(tcp_sender->dup_ack != 3){
+//         /* continue waiting for ack*/
+//         //tcp_sender->to_do = 3;
+//     }
+//     else{
+//         /* half sst*/
+//         tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
+//         /* set new cw size */
+//         tcp_sender->CW = tcp_sender->SST + 3;
+//         /* Resend cw_base and new pkt based on cw */
+//         //tcp_sender->to_do = 1;
+//         /* swtich to fast recovery */
+//         if(!cur_state){
+//             delete cur_state;
+//         }
+//         FastRecovery* state_FR = new FastRecovery(tcp_sender);
+//         cur_state = state_FR;
+//     }
+// }
+
+// void CongestionAvoid::newACK(){
+//     printf("New ACK at state: %d\n", cur_state->state_type);
+//     /* increment window size*/
+//     tcp_sender->CW += 1/(floor(tcp_sender->CW));
+//     /* send new packets based on cw*/
+//     //tcp_sender->to_do = 0;
+//     /* clear duplicate */
+//     tcp_sender->dup_ack = 0;
+// }
+
+// void CongestionAvoid::timeOut(){
+//     /* half sst*/
+//     tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
+//     /* set new cw size */
+//     tcp_sender->CW = 1;
+//     /* clear duplicate */
+//     tcp_sender->dup_ack = 0;
+//     /* resend cw_base */
+//     //tcp_sender->to_do = 2;
+//     /* swtich back to slow start state */
+//     if(!cur_state){
+//             delete cur_state;
+//         }
+//     SlowStart* state_SS = new SlowStart(tcp_sender);
+//     cur_state = state_SS;
+// }
+
+
+// // class FastRecovery: public State{
+// // public:
+// //     /* init */
+// //     FastRecovery(Sender* sender){
+// //         this->tcp_sender = sender;
+// //         this->state_type = 2;
+// //     }
+
+// FastRecovery::FastRecovery(Sender* sender){
+//     this->tcp_sender = sender;
+//     this->state_type = 2;
+// }
+    
+// void FastRecovery::dupACK(){
+//     /* increment numbers of duplicate ack*/
+//     tcp_sender->dup_ack++;
+//     /* incerment cw size */
+//     tcp_sender->CW += 1;
+//     //tcp_sender->to_do = 0;
+// }
+
+// void FastRecovery::newACK(){
+//     printf("New ACK at state: %d\n", cur_state->state_type);
+//     /* clear duplicate ack */
+//     tcp_sender->dup_ack = 0;
+//     /* set cw to SST */
+//     tcp_sender->CW = tcp_sender->SST;
+//     //tcp_sender->to_do = 0;
+    
+//     /* switch to congetion avoidance state*/
+//     if(!cur_state){
+//         delete cur_state;
+//     }
+//     CongestionAvoid* state_CA = new CongestionAvoid(tcp_sender);
+//     cur_state = state_CA;
+// }
+
+// void FastRecovery::timeOut(){
+//     /* half sst*/
+//     tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
+//     /* set new cw size */
+//     tcp_sender->CW = 1;
+//     /* clear duplicate */
+//     tcp_sender->dup_ack = 0;
+//     /* resend cw_base */
+//     //tcp_sender->to_do = 2;
+//     /* swtich back to slow start state */
+//     if(!cur_state){
+//             delete cur_state;
+//         }
+//     SlowStart* state_SS = new SlowStart(tcp_sender);
+//     cur_state = state_SS;
+// }
 
 void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigned long long int bytesToTransfer) {
     // open the file to be transmitted
@@ -608,9 +662,9 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     // }
 
     printf("Initializing tcp sender\n");
-    Sender tcp_sender(sockfd, (int) bytesToTransfer);
-    printf("Start from State: SlowStart\n");
-    cur_state = new SlowStart(&tcp_sender);
+    Sender tcp_sender(sockfd, bytesToTransfer);
+    // printf("Start from State: SlowStart\n");
+    // cur_state = new SlowStart(&tcp_sender);
         
     while(!tcp_sender.is_end){
       switch (to_do)
