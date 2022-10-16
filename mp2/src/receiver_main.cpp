@@ -62,8 +62,9 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     int rcv_numbytes; /* check if valid packet received*/
     int send_numbytes; /* check if valid ack send*/
     char recv_buf[MSS]; /* buffer for packet data*/
-    // struct sockaddr_storage their_addr;
-	  addr_len = sizeof (si_other);
+    struct sockaddr_storage their_addr;
+	  // addr_len = sizeof (si_other);
+    addr_len = sizeof (their_addr);
 
     slen = sizeof (si_other);
 
@@ -81,12 +82,16 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
       diep("bind");
     }
 
+    TCP_packet_t place_holder;
+    place_holder.init();
+
     /* Packet buffer for storing unconsecutive packets */
     std::vector <TCP_packet_t> packet_buf(packet_buf_size);
     /* Initialize */
     for (int i = 0; i < packet_buf_size; i++)
     {
-      packet_buf[packet_buf_size].init();
+       packet_buf[i].init();
+       // packet_buf[packet_buf_size] = place_holder;
     }
     std::vector<TCP_packet_t>::iterator next_start = packet_buf.begin();
     printf("Finish initializing packet buffer.");
@@ -95,17 +100,19 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     if (file_ptr == NULL) { diep("fopen");}
     int cu_ack = -1;  /* cumulative ack. to keep track of unreceived consecutive packets*/
 
+    
+
     TCP_packet_t recv_packet;
     while (1)
     {
-      if ((rcv_numbytes = recvfrom(s, &recv_packet, sizeof(recv_packet) , 0, (struct sockaddr *)&si_me, &addr_len)) == -1) {
+      if ((rcv_numbytes = recvfrom(s, &recv_packet, sizeof(recv_packet) , 0, (struct sockaddr *)&their_addr, &addr_len)) == -1) {
         diep("recvfrom");
 	    }
       printf("Receive packet: %d, Cumulative Ack: %d", recv_packet.seq_num, cu_ack);
       /* check if receive end signal*/
       if(recv_packet.seq_num == -1){
         int end_ack = -1;
-        if ((send_numbytes = sendto(s, &end_ack, sizeof(int), 0, (struct sockaddr *)&si_me, addr_len)) == -1){
+        if ((send_numbytes = sendto(s, &end_ack, sizeof(int), 0, (struct sockaddr *)&their_addr, addr_len)) == -1){
           diep("endackSend");
        }
         break;
@@ -114,7 +121,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
       /* if duplicate packet received */
       else if(recv_packet.seq_num <= cu_ack){
         /* send cumulative ack back to indicate the duplicate packet has once received */
-        if ((send_numbytes = sendto(s, &cu_ack, sizeof(int), 0, (struct sockaddr *)&si_me, addr_len)) == -1){
+        if ((send_numbytes = sendto(s, &cu_ack, sizeof(int), 0, (struct sockaddr *)&their_addr, addr_len)) == -1){
           diep("endackSend");
        }
       }
@@ -135,6 +142,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
           /* update cumulative ack and clear the position in the vector */
           cu_ack = (*next_start).seq_num;
           (*next_start).init();
+          // *next_start = place_holder;
 
           /* turn to the next position, the vector can be seen as circulated, i.e. end is connected to the start */
           if (++next_start == packet_buf.end())
@@ -144,7 +152,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
         }
 
         /* after finish writing, send ack*/
-        if ((send_numbytes = sendto(s, &cu_ack, sizeof(int), 0, (struct sockaddr *)&si_me, addr_len)) == -1){
+        if ((send_numbytes = sendto(s, &cu_ack, sizeof(int), 0, (struct sockaddr *)&their_addr, addr_len)) == -1){
           diep("cuAckSend");
         }
       }
@@ -181,7 +189,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
         recv_packet.init();
 
         /* send the latest cumulative ack */
-        if ((send_numbytes = sendto(s, &cu_ack, sizeof(int), 0, (struct sockaddr *)&si_me, addr_len)) == -1){
+        if ((send_numbytes = sendto(s, &cu_ack, sizeof(int), 0, (struct sockaddr *)&their_addr, addr_len)) == -1){
           diep("cuAckSend");
         }
       }

@@ -33,8 +33,12 @@ using namespace std;
 char fpReadBuf[MSS];
 //enum action {waitACK, resendPkt, sendNewPkt}
 struct sockaddr_in si_other;
-struct addrinfo hints, *servinfo;
-socklen_t addrlen = sizeof(si_other);
+struct addrinfo hints, *servinfo, *p;
+
+
+struct sockaddr_storage their_addr;
+// socklen_t addrlen = sizeof(si_other);
+socklen_t addr_len = sizeof(their_addr);
 
 enum TO_DO {WAIT_ACK, SEND_PCK, RESEND_DUP, RESEND_TO};
 TO_DO to_do = SEND_PCK;
@@ -115,11 +119,18 @@ public:
     
     void WaitAck(){
         printf("TO_DO: Wait \n");
+
+        if((this->waitAckQueue.size() == 0) && (this->file_end == 1)){
+            this->is_end = 1;
+            return;
+        }
+
         if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &checkTimeOut, sizeof(checkTimeOut)) < 0) {
             perror("set timeout fail");
         }
         int recvack_buf;
-        int numBytes = recvfrom(sockfd, &recvack_buf, sizeof(int), 0, NULL, NULL);
+        // int numBytes = recvfrom(sockfd, &recvack_buf, sizeof(int), 0, NULL, NULL);
+        int numBytes = recvfrom(sockfd, &recvack_buf, sizeof(int), 0, (struct sockaddr *)&their_addr, &addr_len);
         /* time out or invalid recv*/
         int check_to;
         if ((numBytes < 0) || ((check_to = check_first_to()) == 1)) {
@@ -141,7 +152,8 @@ public:
             /* pop completed packets */
             if(waitAckQueue.size()!= 0){
                 while((waitAckQueue.front()).seq_num <= recvack_buf){
-                    waitAckQueue.pop();
+                  waitAckQueue.pop();
+                  if(waitAckQueue.size()== 0){ break; }
                 }
             }
             // return;
@@ -276,7 +288,7 @@ private:
     void send_pkt_(TCP_packet *pkt){
         pkt->create_pkt_buf(pktBuffer);
         int numBytes;
-        if((numBytes = sendto(sockfd, pktBuffer, sizeof(pktBuffer), 0, servinfo->ai_addr, servinfo->ai_addrlen))== -1){
+        if((numBytes = sendto(sockfd, pktBuffer, sizeof(pktBuffer), 0, p->ai_addr, p->ai_addrlen))== -1){
             perror("sending packet error");
         }
         printf("Send packet: %d\n", pkt->seq_num);
@@ -547,24 +559,26 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     // may need to parse hostUDPport?
     // memset(&servinfo,0,sizeof servinfo);
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
+    // hints.ai_family = AF_INET;
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_flags = AI_PASSIVE;
 
     if ((rv = getaddrinfo(hostname, hostUDPport, &hints, &servinfo)) != 0){
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
         return;
     }
 
-    // for(p = servinfo; p != NULL; p = servinfo->ai_next) {
-    //     if ((sockfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol)) == -1) {
-    //         perror("server: error socket");
-    //         continue;
-    //     }
-    //     break;
-    // }
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-      perror("server: error socket");
+    for(p = servinfo; p != NULL; p = servinfo->ai_next) {
+        if ((sockfd = socket(AF_INET, servinfo->ai_socktype, IPPROTO_UDP)) == -1) {
+            perror("server: error socket");
+            continue;
+        }
+        break;
     }
+    // if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+    //   perror("server: error socket");
+    // }
     
     // if (p == NULL)  {
     //     fprintf(stderr, "server: failed to bind\n");
@@ -601,7 +615,7 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     finalPkt.seq_num = -1;
     finalPkt.create_pkt_buf(pktBuffer);
 
-    if((numBytes = sendto(sockfd, pktBuffer, sizeof(pktBuffer), 0, servinfo->ai_addr, servinfo->ai_addrlen))== -1){
+    if((numBytes = sendto(sockfd, pktBuffer, sizeof(pktBuffer), 0, p->ai_addr, p->ai_addrlen))== -1){
         perror("sending end packet error");
     }
 
