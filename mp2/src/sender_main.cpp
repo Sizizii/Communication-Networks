@@ -118,7 +118,7 @@ public:
     }
     
     void WaitAck(){
-        printf("TO_DO: Wait \n");
+        // printf("TO_DO: Wait \n");
 
         if((this->waitAckQueue.size() == 0) && (this->file_end == 1)){
             this->is_end = 1;
@@ -179,7 +179,7 @@ public:
     }
 
     void SendPackets(){
-        printf("TO_DO: Send Packets \n");
+        // printf("TO_DO: Send Packets \n");
         /* Load packets */
         int get_pkts_num = getNewPktsNum();
         queue<TCP_packet> to_send = read_n_load(get_pkts_num);
@@ -191,7 +191,7 @@ public:
     }
     
     void Resend_TO(){ /* resend for time out*/
-        printf("TO_DO:Resend time out \n");
+        // printf("TO_DO:Resend time out \n");
         /* load and resend base */
         send_pkt_(&waitAckQueue.front());
         // return recv_ack_();
@@ -200,7 +200,7 @@ public:
     }
 
     void Resend_DUP(){
-        printf("TO_DO:Resend dup \n");
+        // printf("TO_DO:Resend dup \n");
         /* load and resend base */
         send_pkt_(&waitAckQueue.front());
         /* Load packets */
@@ -291,7 +291,7 @@ private:
         if((numBytes = sendto(sockfd, pktBuffer, sizeof(pktBuffer), 0, p->ai_addr, p->ai_addrlen))== -1){
             perror("sending packet error");
         }
-        printf("Send packet: %d\n", pkt->seq_num);
+        // printf("Send packet: %d\n", pkt->seq_num);
         time_t nowTime;
         time(&nowTime);
         pkt->sendTime = nowTime;   
@@ -551,7 +551,7 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     
     file_ptr = fopen(filename, "rb");
     if (file_ptr == NULL) {
-        printf("file can not be open");
+        // printf("file can not be open");
         exit(1);
     }
     // remainingBytes = bteysToTransfer;
@@ -585,9 +585,9 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     //     exit(1);
     // }
 
-    printf("Initializing tcp sender\n");
+    // printf("Initializing tcp sender\n");
     Sender tcp_sender(sockfd, (int) bytesToTransfer);
-    printf("Start from State: SlowStart\n");
+    // printf("Start from State: SlowStart\n");
     cur_state = new SlowStart(&tcp_sender);
         
     while(!tcp_sender.is_end){

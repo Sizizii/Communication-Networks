@@ -76,14 +76,14 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
     si_me.sin_family = AF_INET;
     si_me.sin_port = htons(myUDPport);
     si_me.sin_addr.s_addr = htonl(INADDR_ANY);
-    printf("Now binding\n");
+    // printf("Now binding\n");
     if (bind(s, (struct sockaddr*) &si_me, sizeof (si_me)) == -1){
-      printf("failed to bind");
+      // printf("failed to bind");
       diep("bind");
     }
 
-    TCP_packet_t place_holder;
-    place_holder.init();
+    // TCP_packet_t place_holder;
+    // place_holder.init();
 
     /* Packet buffer for storing unconsecutive packets */
     std::vector <TCP_packet_t> packet_buf(packet_buf_size);
@@ -94,7 +94,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
        // packet_buf[packet_buf_size] = place_holder;
     }
     std::vector<TCP_packet_t>::iterator next_start = packet_buf.begin();
-    printf("Finish initializing packet buffer.");
+    // printf("Finish initializing packet buffer.");
 
     FILE* file_ptr = fopen(destinationFile, "wb");
     if (file_ptr == NULL) { diep("fopen");}
@@ -108,7 +108,7 @@ void reliablyReceive(unsigned short int myUDPport, char* destinationFile) {
       if ((rcv_numbytes = recvfrom(s, &recv_packet, sizeof(recv_packet) , 0, (struct sockaddr *)&their_addr, &addr_len)) == -1) {
         diep("recvfrom");
 	    }
-      printf("Receive packet: %d, Cumulative Ack: %d", recv_packet.seq_num, cu_ack);
+      // printf("Receive packet: %d, Cumulative Ack: %d", recv_packet.seq_num, cu_ack);
       /* check if receive end signal*/
       if(recv_packet.seq_num == -1){
         int end_ack = -1;
