@@ -28,7 +28,7 @@ using namespace std;
 
 #include "sender.h"
 
-#define MSS 1460
+#define MSS 4088 //1460
 // class State;
 char fpReadBuf[MSS];
 //enum action {waitACK, resendPkt, sendNewPkt}
@@ -114,7 +114,7 @@ public:
         this->bytes_remain = bytesToTransfer;
         this->sockfd = sockfd;
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 30000;
+        checkTimeOut.tv_usec = 25000;
     }
     
     void WaitAck(){
