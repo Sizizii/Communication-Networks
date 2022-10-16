@@ -107,7 +107,7 @@ public:
     Sender(int sockfd, unsigned long long int bytesToTransfer){
         // constructor
         this->CW = 1;
-        this->SST = 10000;
+        this->SST = 64;
         this->dup_ack = 0;
         this->recv_ack = -1;
         this->is_end = 0;
@@ -116,7 +116,7 @@ public:
         this->sockfd = sockfd;
         this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 15000;
+        checkTimeOut.tv_usec = 30000;
     }
     
     void WaitAck(){
@@ -231,7 +231,7 @@ public:
         dup_ack++;
         /* check duplicate ack num*/
         if(state_type == 3){  CW += 1;  }
-        else if(dup_ack == 3){
+        else if(dup_ack == 6){
           /* half sst*/
           // if (state_type == 0)
           // {
