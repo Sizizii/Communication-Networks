@@ -118,7 +118,7 @@ public:
     }
     
     void WaitAck(){
-        // printf("TO_DO: Wait \n");
+        printf("TO_DO: Wait \n");
 
         if((this->waitAckQueue.size() == 0) && (this->file_end == 1)){
             this->is_end = 1;
@@ -133,10 +133,10 @@ public:
         int numBytes = recvfrom(sockfd, &recvack_buf, sizeof(int), 0, (struct sockaddr *)&their_addr, &addr_len);
         /* time out or invalid recv*/
         int check_to;
-        if ((numBytes < 0) || ((check_to = check_first_to()) == 1)) {
+        if ((numBytes < 0) || ((check_to = check_first_to()) == 1)) {           
             cur_state->timeOut();
             lastAckPair.second = 0; //? should we clear dup here
-            to_do = RESEND_DUP;
+            to_do = RESEND_TO;
             // return;
         }else if(recvack_buf > lastAckPair.first){
             /* new_ack receive, update latest receive ack pair, first: ack value, second: times of ack received */
@@ -150,8 +150,10 @@ public:
             to_do = SEND_PCK;
 
             /* pop completed packets */
+            printf("Pop elements when recvack_buf is %d\n", recvack_buf);
             if(waitAckQueue.size()!= 0){
                 while((waitAckQueue.front()).seq_num <= recvack_buf){
+                  printf("Pop packet number %d\n", waitAckQueue.front().seq_num);
                   waitAckQueue.pop();
                   if(waitAckQueue.size()== 0){ break; }
                 }
@@ -179,7 +181,7 @@ public:
     }
 
     void SendPackets(){
-        // printf("TO_DO: Send Packets \n");
+        printf("TO_DO: Send Packets \n");
         /* Load packets */
         int get_pkts_num = getNewPktsNum();
         queue<TCP_packet> to_send = read_n_load(get_pkts_num);
@@ -191,8 +193,11 @@ public:
     }
     
     void Resend_TO(){ /* resend for time out*/
-        // printf("TO_DO:Resend time out \n");
+        printf("TO_DO:Resend time out \n");
         /* load and resend base */
+        if(waitAckQueue.size() == 0){
+            printf("error logic, check ack");
+        }
         send_pkt_(&waitAckQueue.front());
         // return recv_ack_();
         to_do = WAIT_ACK;
@@ -200,8 +205,11 @@ public:
     }
 
     void Resend_DUP(){
-        // printf("TO_DO:Resend dup \n");
+        printf("TO_DO:Resend dup \n");
         /* load and resend base */
+        if(waitAckQueue.size() == 0){
+            printf("error logic, check ack");
+        }
         send_pkt_(&waitAckQueue.front());
         /* Load packets */
         int get_pkts_num = this->getNewPktsNum();
@@ -218,7 +226,11 @@ private:
     queue<TCP_packet> waitAckQueue;
     
     int check_first_to(){
+        
         // return 0 for no timeout, 1 for timeout
+        if(waitAckQueue.size() == 0){   
+            return 0;   
+        }
         time_t sendTime_ = waitAckQueue.front().sendTime;
         time_t nowTime;
         time(&nowTime);
@@ -248,6 +260,9 @@ private:
             pktSeqNum = waitAckQueue.back().seq_num + 1;
         }else{
             pktSeqNum = lastAckPair.first + 1;
+        }
+        if(pktSeqNum < 0){
+            printf("Error seq num cal");
         }
 
         while(pktNum-- > 0){
@@ -289,9 +304,13 @@ private:
         pkt->create_pkt_buf(pktBuffer);
         int numBytes;
         if((numBytes = sendto(sockfd, pktBuffer, sizeof(pktBuffer), 0, p->ai_addr, p->ai_addrlen))== -1){
+            printf("Error sending packet: %d", pkt->seq_num);
             perror("sending packet error");
         }
-        // printf("Send packet: %d\n", pkt->seq_num);
+        printf("Send packet: %d, Cu_ack at this time: %d \n for %d times, CW: %d\n", pkt->seq_num, lastAckPair.first, lastAckPair.second, int(floor(CW)));
+        if(pkt->seq_num < 0){
+            printf("error sending");
+        }
         time_t nowTime;
         time(&nowTime);
         pkt->sendTime = nowTime;   
@@ -380,7 +399,7 @@ public:
         }
         else{
             /* half sst*/
-            tcp_sender->SST /= 2;
+            tcp_sender->SST = round(tcp_sender->CW / 2) + 1;;
             /* set new cw size */
             tcp_sender->CW = tcp_sender->SST + 3;
             /* Resend cw_base and new pkt based on cw */
@@ -396,6 +415,7 @@ public:
     }
 
     void newACK(){
+        printf("New ACK at state: %d\n", cur_state->state_type);
         /* increment window size*/
         tcp_sender->CW += 1;
         /* send new packets based on cw*/
@@ -415,7 +435,7 @@ public:
 
     void timeOut(){
         /* half sst*/
-        tcp_sender->SST /= 2;
+        tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
         /* set new cw size */
         tcp_sender->CW = 1;
         /* clear duplicate */
@@ -449,7 +469,7 @@ void CongestionAvoid::dupACK(){
     }
     else{
         /* half sst*/
-        tcp_sender->SST /= 2;
+        tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
         /* set new cw size */
         tcp_sender->CW = tcp_sender->SST + 3;
         /* Resend cw_base and new pkt based on cw */
@@ -464,6 +484,7 @@ void CongestionAvoid::dupACK(){
 }
 
 void CongestionAvoid::newACK(){
+    printf("New ACK at state: %d\n", cur_state->state_type);
     /* increment window size*/
     tcp_sender->CW += 1/(floor(tcp_sender->CW));
     /* send new packets based on cw*/
@@ -474,7 +495,7 @@ void CongestionAvoid::newACK(){
 
 void CongestionAvoid::timeOut(){
     /* half sst*/
-    tcp_sender->SST /= 2;
+    tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
     /* set new cw size */
     tcp_sender->CW = 1;
     /* clear duplicate */
@@ -512,6 +533,7 @@ void FastRecovery::dupACK(){
 }
 
 void FastRecovery::newACK(){
+    printf("New ACK at state: %d\n", cur_state->state_type);
     /* clear duplicate ack */
     tcp_sender->dup_ack = 0;
     /* set cw to SST */
@@ -528,7 +550,7 @@ void FastRecovery::newACK(){
 
 void FastRecovery::timeOut(){
     /* half sst*/
-    tcp_sender->SST /= 2;
+    tcp_sender->SST = round(tcp_sender->CW / 2) + 1;
     /* set new cw size */
     tcp_sender->CW = 1;
     /* clear duplicate */
@@ -551,7 +573,7 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     
     file_ptr = fopen(filename, "rb");
     if (file_ptr == NULL) {
-        // printf("file can not be open");
+        printf("file can not be open");
         exit(1);
     }
     // remainingBytes = bteysToTransfer;
@@ -585,9 +607,9 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     //     exit(1);
     // }
 
-    // printf("Initializing tcp sender\n");
+    printf("Initializing tcp sender\n");
     Sender tcp_sender(sockfd, (int) bytesToTransfer);
-    // printf("Start from State: SlowStart\n");
+    printf("Start from State: SlowStart\n");
     cur_state = new SlowStart(&tcp_sender);
         
     while(!tcp_sender.is_end){
