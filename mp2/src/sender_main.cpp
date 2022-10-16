@@ -28,7 +28,7 @@ using namespace std;
 
 // #include "sender.h"
 
-#define MSS 1460
+#define MSS 1472
 // class State;
 char fpReadBuf[MSS];
 //enum action {waitACK, resendPkt, sendNewPkt}
@@ -107,7 +107,7 @@ public:
     Sender(int sockfd, unsigned long long int bytesToTransfer){
         // constructor
         this->CW = 1;
-        this->SST = 512;
+        this->SST = 10000;
         this->dup_ack = 0;
         this->recv_ack = -1;
         this->is_end = 0;
@@ -116,7 +116,7 @@ public:
         this->sockfd = sockfd;
         this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 30000;
+        checkTimeOut.tv_usec = 15000;
     }
     
     void WaitAck(){
@@ -233,6 +233,11 @@ public:
         if(state_type == 3){  CW += 1;  }
         else if(dup_ack == 3){
           /* half sst*/
+          // if (state_type == 0)
+          // {
+          //   CW = (CW <= (SST/2))? (2*CW):SST;
+          // }
+          // else{
           SST = round(CW / 2) + 1;
           /* set new cw size */
           CW = SST + 3;
@@ -250,11 +255,13 @@ public:
       /* increment window size*/
       switch (state_type){
         case 0:
-          CW += 1;
+          CW *= 2;
+          // CW += 1;
           state_type = (CW >= SST)? 1: 0;
           break;
         case 1:
-          CW += 1/(floor(CW)); 
+          // CW += 1/(floor(CW)); 
+          CW += 1;
           break;
         case 2:
           CW = SST;
@@ -265,7 +272,8 @@ public:
 
     void timeOut(){
         /* half sst*/
-        SST = round(CW / 2) + 1;
+        // SST = (state_type == 0)? (round(CW / 2) + 1): SST;
+        SST = (round(CW / 2) + 1);
         /* set new cw size */
         CW = 1;
         /* clear duplicate */
@@ -289,6 +297,7 @@ private:
         time(&nowTime);
         double diffTime = difftime(nowTime, sendTime_);
         return (diffTime < (checkTimeOut.tv_usec/ 1000.0))? 0:1;
+        // return (diffTime < (40.0))? 0:1;
     }
 
     // int getNewPktsNum(){
