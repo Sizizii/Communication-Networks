@@ -17,7 +17,7 @@
 #include <pthread.h>
 #include <vector>
 
-#define MSS 1472
+#define MSS 4088
 #define packet_buf_size 512
 
 

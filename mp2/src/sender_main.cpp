@@ -28,7 +28,7 @@ using namespace std;
 
 // #include "sender.h"
 
-#define MSS 1472
+#define MSS 4088
 // class State;
 char fpReadBuf[MSS];
 //enum action {waitACK, resendPkt, sendNewPkt}
@@ -46,7 +46,7 @@ TO_DO to_do = SEND_PCK;
 char pktBuffer[MSS+8];
 // int recvack_buf;
 pair<int, int> lastAckPair(-1, 0);  // first element stores the last acknowledged seq_num, second stores the times we see the seq_num
-// char recvBuffer[4096];
+char recvBuffer[256];
 
 FILE* file_ptr;
 // State* cur_state;
@@ -108,7 +108,7 @@ public:
         // constructor
         this->CW = 1;
         this->SST = 64;
-        this->dup_ack = 0;
+        this->dup_ack = 0; 
         this->recv_ack = -1;
         this->is_end = 0;
         this->file_end = 0;
@@ -117,6 +117,7 @@ public:
         this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
         checkTimeOut.tv_usec = 30000;
+        memset(recvBuffer, 0, sizeof(recvBuffer));
     }
     
     void WaitAck(){
@@ -130,23 +131,36 @@ public:
         if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &checkTimeOut, sizeof(checkTimeOut)) < 0) {
             perror("set timeout fail");
         }
-        int recvack_buf;
+        // int recvack_buf;
         // int numBytes = recvfrom(sockfd, &recvack_buf, sizeof(int), 0, NULL, NULL);
-        int numBytes = recvfrom(sockfd, &recvack_buf, sizeof(int), 0, (struct sockaddr *)&their_addr, &addr_len);
+        int numBytes = recvfrom(sockfd, &recvBuffer, sizeof(recvBuffer), 0, (struct sockaddr *)&their_addr, &addr_len);
+        int recvack_buf = parse_recv(recvBuffer, numBytes); ;
         /* time out or invalid recv*/
-        int check_to;
-        if ((numBytes < 0) || ((check_to = check_first_to()) == 1)) {           
-            timeOut();
-            lastAckPair.second = 0; //? should we clear dup here
-            to_do = RESEND_TO;
+        // int check_to;
+        // if ((numBytes < 0) || ((check_to = check_first_to(recvack_buf)) == 1) ) { 
+        // if (numBytes < 0){        
+        //     timeOut();
+        //     lastAckPair.second = 0; //? should we clear dup here
+        //     to_do = RESEND_TO;
+        //     // return;
+        // }
+        if(numBytes < 0){
+          timeOut();
+          lastAckPair.second = 0; //? should we clear dup here
+          to_do = RESEND_TO;
             // return;
-        }else if(recvack_buf > lastAckPair.first){
+        }
+        else{
+          if(numBytes < 4){ recvack_buf = lastAckPair.first;  }
+          // else{ recvack_buf = parse_recv(recvBuffer, numBytes); }
+
+          if(recvack_buf > lastAckPair.first){
             /* new_ack receive, update latest receive ack pair, first: ack value, second: times of ack received */
             lastAckPair.first = recvack_buf;
             lastAckPair.second = 1;
 
             /* update parameter and state transition */
-            newACK();
+            newACK(recvack_buf-lastAckPair.first);
 
             /* next to_do is to send packets based on CW*/
             to_do = SEND_PCK;
@@ -161,7 +175,7 @@ public:
                 }
             }
             // return;
-        }else if(recvack_buf == lastAckPair.first){
+          }else if(recvack_buf == lastAckPair.first){
             /* duplicate ack receive */
             lastAckPair.second++;
             if(state_type == 2){
@@ -169,13 +183,13 @@ public:
                 to_do = SEND_PCK;
             }else{ 
                 // cur_state is not fast recovery
-                if(lastAckPair.second == 3){
+                if(lastAckPair.second >= 6){
                     to_do = RESEND_DUP;
                 }
             }
             dupACK();
             // return;
-        }
+        }}
         
         if((this->waitAckQueue.size() == 0) && (this->file_end == 1)){
             this->is_end = 1;
@@ -230,8 +244,8 @@ public:
         /* increment numbers of duplicate ack*/
         dup_ack++;
         /* check duplicate ack num*/
-        if(state_type == 3){  CW += 1;  }
-        else if(dup_ack == 6){
+        if(state_type == 2){  CW += 1;  }
+        else if(dup_ack >= 6 && state_type == 1){
           /* half sst*/
           // if (state_type == 0)
           // {
@@ -249,18 +263,23 @@ public:
         }
     }
 
-    void newACK(){
+    void newACK(int times_){
       printf("New ACK at state: %d\n", state_type);
       dup_ack = 0;
       /* increment window size*/
       switch (state_type){
         case 0:
-          CW *= 2;
-          // CW += 1;
+          CW += times_;
+          while (times_-- > 0){
+            CW *=2;
+          }
+          // CW += 1 + (times_);
           state_type = (CW >= SST)? 1: 0;
           break;
         case 1:
-          // CW += 1/(floor(CW)); 
+          // while(times_-- > 0){
+          //   CW += 1/floor(CW);
+          // } 
           CW += 1;
           break;
         case 2:
@@ -273,9 +292,9 @@ public:
     void timeOut(){
         /* half sst*/
         // SST = (state_type == 0)? (round(CW / 2) + 1): SST;
-        SST = (round(CW / 2) + 1);
+        SST = round(CW / 2) + 1;
         /* set new cw size */
-        CW = 1;
+        CW = SST;
         /* clear duplicate */
         dup_ack = 0;
         state_type = 0;
@@ -286,11 +305,14 @@ public:
 private:
     queue<TCP_packet> waitAckQueue;
     
-    int check_first_to(){
+    int check_first_to(int latest_ack){
         
         // return 0 for no timeout, 1 for timeout
         if(waitAckQueue.size() == 0){   
-            return 0;   
+          return 0;   
+        }
+        if(waitAckQueue.front().seq_num <= latest_ack){
+          return 0;
         }
         time_t sendTime_ = waitAckQueue.front().sendTime;
         time_t nowTime;
@@ -389,6 +411,17 @@ private:
             pktQueue.pop();
         }
         return;
+    }
+
+    int parse_recv(char* buf, int buf_size){
+      int max_recv = 0;
+      int parse_int;
+      for (int i = 0; i + 4 <= buf_size; i += 4)
+      {
+        memcpy(&parse_int, buf+i, 4);
+        max_recv = (parse_int > max_recv)? parse_int: max_recv;
+      }
+      return max_recv;
     }
 };    
     /* return -1 for timeout, 1 for duplicate ack, 0 for new ack*/
