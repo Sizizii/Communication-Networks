@@ -46,7 +46,7 @@ TO_DO to_do = SEND_PCK;
 char pktBuffer[MSS+8];
 // int recvack_buf;
 pair<int, int> lastAckPair(-1, 0);  // first element stores the last acknowledged seq_num, second stores the times we see the seq_num
-char recvBuffer[256];
+char recvBuffer[4096];
 
 FILE* file_ptr;
 // State* cur_state;
@@ -116,7 +116,7 @@ public:
         this->sockfd = sockfd;
         this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 30000;
+        checkTimeOut.tv_usec = 25000;
         memset(recvBuffer, 0, sizeof(recvBuffer));
     }
     
@@ -156,11 +156,11 @@ public:
 
           if(recvack_buf > lastAckPair.first){
             /* new_ack receive, update latest receive ack pair, first: ack value, second: times of ack received */
-            lastAckPair.first = recvack_buf;
-            lastAckPair.second = 1;
 
             /* update parameter and state transition */
             newACK(recvack_buf-lastAckPair.first);
+            lastAckPair.first = recvack_buf;
+            lastAckPair.second = 1;
 
             /* next to_do is to send packets based on CW*/
             to_do = SEND_PCK;
@@ -183,13 +183,13 @@ public:
                 to_do = SEND_PCK;
             }else{ 
                 // cur_state is not fast recovery
-                if(lastAckPair.second >= 6){
-                    to_do = RESEND_DUP;
-                }
+              if(lastAckPair.second >= 3){
+                to_do = RESEND_DUP;
+              }
             }
             dupACK();
             // return;
-        }}
+          }}
         
         if((this->waitAckQueue.size() == 0) && (this->file_end == 1)){
             this->is_end = 1;
@@ -245,7 +245,7 @@ public:
         dup_ack++;
         /* check duplicate ack num*/
         if(state_type == 2){  CW += 1;  }
-        else if(dup_ack >= 6 && state_type == 1){
+        else if(dup_ack >= 3 && state_type == 1){
           /* half sst*/
           // if (state_type == 0)
           // {
@@ -269,7 +269,7 @@ public:
       /* increment window size*/
       switch (state_type){
         case 0:
-          CW += times_;
+          // CW += times_;
           while (times_-- > 0){
             CW *=2;
           }
@@ -280,7 +280,7 @@ public:
           // while(times_-- > 0){
           //   CW += 1/floor(CW);
           // } 
-          CW += 1;
+          CW += times_;
           break;
         case 2:
           CW = SST;
