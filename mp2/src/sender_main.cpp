@@ -181,6 +181,8 @@ public:
             if(state_type == 2){
                 // cur_state is fast recovery
                 to_do = SEND_PCK;
+            }else if(state_type == 0){
+              to_do = WAIT_ACK;
             }else{ 
                 // cur_state is not fast recovery
               if(lastAckPair.second >= 3){
@@ -269,18 +271,17 @@ public:
       /* increment window size*/
       switch (state_type){
         case 0:
-          // CW += times_;
-          while (times_-- > 0){
-            CW *=2;
-          }
-          // CW += 1 + (times_);
+          CW += times_;
+          // while (times_-- > 0){
+          //   CW *=2;
+          // }
           state_type = (CW >= SST)? 1: 0;
           break;
         case 1:
-          // while(times_-- > 0){
-          //   CW += 1/floor(CW);
-          // } 
-          CW += times_;
+          while(times_-- > 0){
+            CW += 1/floor(CW);
+          } 
+          // CW += times_;
           break;
         case 2:
           CW = SST;
@@ -294,7 +295,8 @@ public:
         // SST = (state_type == 0)? (round(CW / 2) + 1): SST;
         SST = round(CW / 2) + 1;
         /* set new cw size */
-        CW = SST;
+        // CW = SST;
+        CW = 1;
         /* clear duplicate */
         dup_ack = 0;
         state_type = 0;
