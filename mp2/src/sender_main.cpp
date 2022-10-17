@@ -279,7 +279,7 @@ public:
           break;
         case 1:
           while(times_-- > 0){
-            CW += 1/floor(CW);
+            CW += 2/floor(CW);
           } 
           // CW += times_;
           break;
