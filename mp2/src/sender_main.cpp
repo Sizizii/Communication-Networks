@@ -107,7 +107,7 @@ public:
     Sender(int sockfd, unsigned long long int bytesToTransfer){
         // constructor
         this->CW = 1;
-        this->SST = 128;
+        this->SST = 64;
         this->dup_ack = 0; 
         this->recv_ack = -1;
         this->is_end = 0;
@@ -116,7 +116,7 @@ public:
         this->sockfd = sockfd;
         this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 30000;
+        checkTimeOut.tv_usec = 25000;
         memset(recvBuffer, 0, sizeof(recvBuffer));
     }
     
@@ -271,7 +271,7 @@ public:
       /* increment window size*/
       switch (state_type){
         case 0:
-          CW += 2*times_;
+          CW += 1*times_;
           // while (times_-- > 0){
           //   CW *=2;
           // }
