@@ -107,7 +107,7 @@ public:
     Sender(int sockfd, unsigned long long int bytesToTransfer){
         // constructor
         this->CW = 1;
-        this->SST = 256;
+        this->SST = 128;
         this->dup_ack = 0; 
         this->recv_ack = -1;
         this->is_end = 0;
@@ -116,12 +116,12 @@ public:
         this->sockfd = sockfd;
         this->state_type = 0; /* 0 for slow start */
         checkTimeOut.tv_sec = 0;
-        checkTimeOut.tv_usec = 25000;
+        checkTimeOut.tv_usec = 30000;
         memset(recvBuffer, 0, sizeof(recvBuffer));
     }
     
     void WaitAck(){
-        printf("TO_DO: Wait \n");
+        // printf("TO_DO: Wait \n");
 
         if((this->waitAckQueue.size() == 0) && (this->file_end == 1)){
             this->is_end = 1;
@@ -166,10 +166,10 @@ public:
             to_do = SEND_PCK;
 
             /* pop completed packets */
-            printf("Pop elements when recvack_buf is %d\n", recvack_buf);
+            // printf("Pop elements when recvack_buf is %d\n", recvack_buf);
             if(waitAckQueue.size()!= 0){
                 while((waitAckQueue.front()).seq_num <= recvack_buf){
-                  printf("Pop packet number %d\n", waitAckQueue.front().seq_num);
+                  // printf("Pop packet number %d\n", waitAckQueue.front().seq_num);
                   waitAckQueue.pop();
                   if(waitAckQueue.size()== 0){ break; }
                 }
@@ -199,7 +199,7 @@ public:
     }
 
     void SendPackets(){
-        printf("TO_DO: Send Packets \n");
+        // printf("TO_DO: Send Packets \n");
         /* Load packets */
         // int get_pkts_num = getNewPktsNum();
         queue<TCP_packet> to_send = read_n_load();
@@ -211,7 +211,7 @@ public:
     }
     
     void Resend_TO(){ /* resend for time out*/
-        printf("TO_DO:Resend time out \n");
+        // printf("TO_DO:Resend time out \n");
         /* load and resend base */
         // if(waitAckQueue.size() == 0){
         //     printf("error logic, check ack");
@@ -224,7 +224,7 @@ public:
     }
 
     void Resend_DUP(){
-        printf("TO_DO:Resend dup \n");
+        // printf("TO_DO:Resend dup \n");
 
         /* load and resend base */
         // if(waitAckQueue.size() == 0){
@@ -266,12 +266,12 @@ public:
     }
 
     void newACK(int times_){
-      printf("New ACK at state: %d\n", state_type);
+      // printf("New ACK at state: %d\n", state_type);
       dup_ack = 0;
       /* increment window size*/
       switch (state_type){
         case 0:
-          CW += 3*times_;
+          CW += 2*times_;
           // while (times_-- > 0){
           //   CW *=2;
           // }
@@ -279,7 +279,7 @@ public:
           break;
         case 1:
           while(times_-- > 0){
-            CW += 3/floor(CW);
+            CW += 2/floor(CW);
           } 
           // CW += times_;
           break;
@@ -705,7 +705,7 @@ void reliablyTransfer(char* hostname, char* hostUDPport, char* filename, unsigne
     //     exit(1);
     // }
 
-    printf("Initializing tcp sender\n");
+    // printf("Initializing tcp sender\n");
     Sender tcp_sender(sockfd, bytesToTransfer);
     // printf("Start from State: SlowStart\n");
     // cur_state = new SlowStart(&tcp_sender);
