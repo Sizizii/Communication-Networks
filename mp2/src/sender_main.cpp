@@ -107,7 +107,7 @@ public:
     Sender(int sockfd, unsigned long long int bytesToTransfer){
         // constructor
         this->CW = 1;
-        this->SST = 64;
+        this->SST = 256;
         this->dup_ack = 0; 
         this->recv_ack = -1;
         this->is_end = 0;
@@ -271,7 +271,7 @@ public:
       /* increment window size*/
       switch (state_type){
         case 0:
-          CW += times_;
+          CW += 3*times_;
           // while (times_-- > 0){
           //   CW *=2;
           // }
