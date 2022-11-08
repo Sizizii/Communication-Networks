@@ -30,8 +30,8 @@ void readTopoFile(char* topofile){
     /* read fail*/
     if (!ifs.is_open())
     {
-        cout << "read fail." << endl;
-        exit(1);
+      cout << "read fail." << endl;
+      exit(1);
     }
 
     string buf;
@@ -79,7 +79,8 @@ void linkState(){
       nodeSet.insert(*srciter);
       int srcInt = *srciter;
       int min_cost = INFINITY_COST;
-      int min_node, dstInt;
+      int min_node = INFINITY_COST;
+      int dstInt;
 
       /* initialization */
       for(set<int>::iterator dstiter=nodes.begin(); dstiter!=nodes.end(); dstiter++){
@@ -104,7 +105,10 @@ void linkState(){
             min_node = dstInt;
           }
           else if(topoMap[srcInt][dstInt] == min_cost){
-            min_node = dstInt;
+            if (dstInt < min_node)
+            {
+              min_node = dstInt;
+            }
           }
         }
         /* nonadjacent */
@@ -119,13 +123,13 @@ void linkState(){
       /* find costs from src to each node*/
       int test_node;
       nodeSet.insert(min_node);
-      if (nodeSet.size() != 2)
-      {
-        cout << "Initialize error for node " << srcInt << "\n";
-      }
-      else{
-        cout << "Correct initialization " << srcInt << "\n";
-      }
+      // if (nodeSet.size() != 2)
+      // {
+      //   cout << "Initialize error for node " << srcInt << "\n";
+      // }
+      // else{
+      //   cout << "Correct initialization " << srcInt << "\n";
+      // }
 
       while (nodeSet.size() != nodes.size())
       {
@@ -160,21 +164,20 @@ void linkState(){
                 }
               }
             }
-          }
 
-          if (nodePairs[dstInt].second < min_cost){
-            min_cost = nodePairs[dstInt].second;
-            min_node = dstInt;
-          }
-          else if (nodePairs[dstInt].second == min_cost){
-            /* choose the lowest node ID to insert */
-            if (dstInt < min_node)
-            {
+            if (nodePairs[dstInt].second < min_cost){
+              min_cost = nodePairs[dstInt].second;
               min_node = dstInt;
+            }
+            else if (nodePairs[dstInt].second == min_cost){
+              /* choose the lowest node ID to insert */
+              if (dstInt < min_node)
+              {
+                min_node = dstInt;
+              }
             }
           }
         }
-
         if (min_cost == INFINITY_COST){
             break;
         }
