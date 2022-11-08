@@ -69,6 +69,7 @@ void linkState(){
     /* the first is child, the second is a pair: first is predecessor, and second is cost */
     /* We don't include mapping for source node in nodePairs */
     unordered_map<int, pair<int, int> > nodePairs;
+    fTable.clear();
 
     for (set<int>::iterator srciter=nodes.begin(); srciter!=nodes.end(); srciter++)
     {
@@ -174,6 +175,10 @@ void linkState(){
           }
         }
 
+        if (min_cost == INFINITY_COST){
+            break;
+        }
+
         nodeSet.insert(min_node);
       }
 
@@ -226,7 +231,7 @@ void writeOutput(std::ofstream& out, char* messagefile){
           }
           else{
             /* only prints reachable destinations */
-            if (fTable[*srciter][*dstiter].second != INFINITY_COST)
+            if (fTable[*srciter].find(*dstiter) != fTable[*srciter].end())
             {
               out << *dstiter << " " << fTable[*srciter][*dstiter].first << " " << fTable[*srciter][*dstiter].second << "\n";
             }
